@@ -10,19 +10,19 @@ from PIL import Image
 import tensorflow as tf
 import copy
 import pandas as pd
-from pyoints import (
-    storage,
-    Extent,
-    transformation,
-    filters,
-    registration,
-    normals,
-)
+# from pyoints import (
+#     storage,
+#     Extent,
+#     transformation,
+#     filters,
+#     registration,
+#     normals,
+# )
 import trimesh
 
-def get_dataset_points(dataset, n_points=1024):
+def get_dataset_points(dataset, n_points=1024, datadir='../Data/toy'):
     if dataset == 'toy_points':
-        points = pd.read_csv('data/remeetingtoday/fullData.csv', header=None).T.to_numpy()
+        points = pd.read_csv(f'{datadir}/fullData.csv', header=None).T.to_numpy()
         points = np.dot(points, getRotationMatrix(90, 'x'))
         points = np.dot(points, getRotationMatrix(-20, 'x'))
         
@@ -511,7 +511,7 @@ def get_4pointsample_transform_mat(points, gt_points, dist_agg_fn=None, t_sample
         if dist < min_dist:
             min_dist = dist
             best_t = trans_mat
-    return min_dist, best_t
+    return best_t, min_dist
 
 def get_optimal_trans_mat(points_a, points_b, iterations=10000, dist_agg_fn=None, lr=0.001):
     if not dist_agg_fn:
@@ -533,66 +533,66 @@ def get_optimal_trans_mat(points_a, points_b, iterations=10000, dist_agg_fn=None
         opt.minimize(loss_fn, transform_mat)
     return transform_mat.numpy(), loss_fn().numpy()
 
-def get_icp_trans_mat(points_a, points_b, d_th=80, max_iter=1000, max_change_ratio=0.000001):
-    coords_dict = {
-        'Embedding': points_a,
-        'GT': points_b,
-    }
-    # First, we initialize an ICP object. 
-    # The algorithm iteratively matches the ‘k’ closest points. 
-    # To limit the ratio of mismatched points, the ‘radii’ parameter is provided. It defines an ellipsoid within points can be assigned.
-    radii = [d_th, d_th, d_th]
-    icp = registration.ICP(
-        radii,
-        max_iter=max_iter,
-        max_change_ratio=max_change_ratio,
-        # max_change_ratio=0.01,
-        k=1,
-    )
+# def get_icp_trans_mat(points_a, points_b, d_th=80, max_iter=1000, max_change_ratio=0.000001):
+#     coords_dict = {
+#         'Embedding': points_a,
+#         'GT': points_b,
+#     }
+#     # First, we initialize an ICP object. 
+#     # The algorithm iteratively matches the ‘k’ closest points. 
+#     # To limit the ratio of mismatched points, the ‘radii’ parameter is provided. It defines an ellipsoid within points can be assigned.
+#     radii = [d_th, d_th, d_th]
+#     icp = registration.ICP(
+#         radii,
+#         max_iter=max_iter,
+#         max_change_ratio=max_change_ratio,
+#         # max_change_ratio=0.01,
+#         k=1,
+#     )
 
-    T_dict, pairs_dict, report = icp(coords_dict)
+#     T_dict, pairs_dict, report = icp(coords_dict)
 
-    embedding_trans = np.dot(np.linalg.inv(T_dict['GT']), T_dict['Embedding'])
+#     embedding_trans = np.dot(np.linalg.inv(T_dict['GT']), T_dict['Embedding'])
     
     
-    aligned_a = apply_transformation(points_a, embedding_trans)
+#     aligned_a = apply_transformation(points_a, embedding_trans)
     
-    loss = np.linalg.norm(aligned_a - points_b, axis=1)
-    loss = np.sqrt(np.mean(loss*loss))
+#     loss = np.linalg.norm(aligned_a - points_b, axis=1)
+#     loss = np.sqrt(np.mean(loss*loss))
 
-    return embedding_trans, loss
+#     return embedding_trans, loss
 
-def get_icp_trans_mat_by_random_rotation(points_a, points_b, d_th=80, max_iter=1000, max_change_ratio=0.000001):
-    best_match = None
-    for rotated_points in tqdm(list(reversed(list(create_rotated_points(points_a))))):
-        coords_dict = {
-            'Embedding': rotated_points,
-            'GT': points_b,
-        }
-        # First, we initialize an ICP object. 
-        # The algorithm iteratively matches the ‘k’ closest points. 
-        # To limit the ratio of mismatched points, the ‘radii’ parameter is provided. It defines an ellipsoid within points can be assigned.
-        radii = [d_th, d_th, d_th]
-        icp = registration.ICP(
-            radii,
-            max_iter=max_iter,
-            max_change_ratio=max_change_ratio,
-            # max_change_ratio=0.01,
-            k=1,
-        )
+# def get_icp_trans_mat_by_random_rotation(points_a, points_b, d_th=80, max_iter=1000, max_change_ratio=0.000001):
+#     best_match = None
+#     for rotated_points in tqdm(list(reversed(list(create_rotated_points(points_a))))):
+#         coords_dict = {
+#             'Embedding': rotated_points,
+#             'GT': points_b,
+#         }
+#         # First, we initialize an ICP object. 
+#         # The algorithm iteratively matches the ‘k’ closest points. 
+#         # To limit the ratio of mismatched points, the ‘radii’ parameter is provided. It defines an ellipsoid within points can be assigned.
+#         radii = [d_th, d_th, d_th]
+#         icp = registration.ICP(
+#             radii,
+#             max_iter=max_iter,
+#             max_change_ratio=max_change_ratio,
+#             # max_change_ratio=0.01,
+#             k=1,
+#         )
 
-        T_dict, pairs_dict, report = icp(coords_dict)
+#         T_dict, pairs_dict, report = icp(coords_dict)
 
-        aligned_embedding1 = transformation.transform(coords_dict['Embedding'], T_dict['Embedding'])
-        aligned_GT1 = transformation.transform(coords_dict['GT'], T_dict['GT'])
+#         aligned_embedding1 = transformation.transform(coords_dict['Embedding'], T_dict['Embedding'])
+#         aligned_GT1 = transformation.transform(coords_dict['GT'], T_dict['GT'])
 
-        if not best_match or report['RMSE'][-1] < best_match['RMSE']:
-            best_match = {
-                'RMSE': report['RMSE'][-1],
-                'aligned_points_a': aligned_embedding1,
-                'aligned_points_b': aligned_GT1,
-                'trans_mat_points_a': T_dict['Embedding'],
-                'trans_mat_points_b': T_dict['GT'],
-            }
+#         if not best_match or report['RMSE'][-1] < best_match['RMSE']:
+#             best_match = {
+#                 'RMSE': report['RMSE'][-1],
+#                 'aligned_points_a': aligned_embedding1,
+#                 'aligned_points_b': aligned_GT1,
+#                 'trans_mat_points_a': T_dict['Embedding'],
+#                 'trans_mat_points_b': T_dict['GT'],
+#             }
             
-    return best_match
+#     return best_match
