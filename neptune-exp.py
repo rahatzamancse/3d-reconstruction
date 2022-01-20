@@ -4,20 +4,17 @@
 import neptune.new as neptune
 from neptune.new.types import File
 
-# Imports
-import sys
-sys.path.insert(0,'../MPSE')
-
 from matplotlib import pyplot as plt
 from plotly.io import to_html
 import numpy as np
 seed = np.random.randint(1, 500)
 np.random.seed(seed)
 from tqdm import tqdm
+import time
 
 import copy
 
-from MPSE import mview
+from MPSE.MPSE import mview
 from utils import *
 
 import pprint as pp
@@ -36,8 +33,8 @@ init_params = dict(
     # DATASET = 'toy_points',
     DATASET = 'ModelNet10:chair:0001',
     INITIAL_EMBEDDING = False,
-    N_POINTS = 512,
-    N_PERSPECTIVE = 8,
+    N_POINTS = 256,
+    N_PERSPECTIVE = 2,
     N_PROJECTION_DIM = 2,
     PROJECTION = dict(
         PROJ_TYPE = 'atleast_in_n_persp',
@@ -54,44 +51,67 @@ init_params = dict(
         MIN_GRAD = 1e-10,
         MIN_COST = 1e-10,
         VERBOSE = 2,
-        SMART_INITIALIZATION = False,
+        SMART_INITIALIZATION = True,
         INITIAL_PROJECTIONS = 'cylinder',
         VARIABLE_PROJECTION = True
     ),
     NUMPY_SEED = seed,
     UPLOAD_LARGE_VIZ = False,
+    tags = []
 )
 all_params = [init_params]
 
 # Add all the run configs
+
 # for n_points in [200, 300, 400, 500, 600, 700, 800, 900, 1000]:
 #     new_param = copy.deepcopy(init_params)
 #     new_param['N_POINTS'] = n_points
 #     all_params.append(new_param)
-for _ in range(30):
-    for n_persp in [8, 12, 14]:
-        new_param_tmp = copy.deepcopy(init_params)
-        new_param_tmp['N_PERSPECTIVE'] = n_persp
-        for i in range(1, n_persp+1):
-            new_param_tmp2 = copy.deepcopy(new_param_tmp)
-            new_param_tmp2['PROJECTION']['POINT_IN_ATLEAST'] = i
+
+# for _ in range(30):
+#     for n_persp in [4, 8, 12, 14]:
+#     # for n_persp in [12, 14]:
+#         new_param_tmp = copy.deepcopy(init_params)
+#         new_param_tmp['N_PERSPECTIVE'] = n_persp
+#         for i in range(1, n_persp+1):
+#             new_param_tmp2 = copy.deepcopy(new_param_tmp)
+#             new_param_tmp2['PROJECTION']['POINT_IN_ATLEAST'] = i
+#             for proj in [True, False]:
+#                 new_param = copy.deepcopy(new_param_tmp2)
+#                 new_param['MPSE']['VARIABLE_PROJECTION'] = proj
+#                 all_params.append(new_param)
+
+
+
+template_params = copy.deepcopy(all_params.pop(0))
+for _ in range(1):
+    for dataset in ['ModelNet10:chair:0001', 'ModelNet10:desk:0005', 'ModelNet10:desk:0006', 'ModelNet10:desk:0013', 'ModelNet10:bed:0001', 'ModelNet10:bed:0005', 'ModelNet10:bed:0003', 'ModelNet10:bathtub:0005', 'ModelNet10:bathtub:0050', 'ModelNet10:dresser:0001', 'ModelNet10:monitor:0003', 'ModelNet10:monitor:0016', 'ModelNet10:night_stand:0010', 'ModelNet10:sofa:0019', 'ModelNet10:table:0002','ModelNet10:toilet:0001']:
+        new_params_dataset = copy.deepcopy(template_params)
+        new_params_dataset['DATASET'] = dataset
+        for n_persp in range(2, 13):
+            new_param_tmp = copy.deepcopy(new_params_dataset)
+            new_param_tmp['N_PERSPECTIVE'] = n_persp
+            new_param_tmp['PROJECTION']['POINT_IN_ATLEAST'] = int(np.ceil(n_persp/2))
             for proj in [True, False]:
-                new_param = copy.deepcopy(new_param_tmp2)
-                new_param['MPSE']['VARIABLE_PROJECTION'] = proj
-                all_params.append(new_param)
+                new_param2 = copy.deepcopy(new_param_tmp)
+                new_param2['MPSE']['VARIABLE_PROJECTION'] = proj
+                all_params.append(new_param2)
 
-
-# all_params.pop(0)
-# template_params = copy.deepcopy(all_params)
-# for dataset in ['dresser', 'monitor', 'night_stand', 'sofa', 'table', 'toilet']:
-#     new_params_dataset = copy.deepcopy(template_params)
-#     for npd in new_params_dataset:
-#         npd["DATASET"] = f"ModelNet10:{dataset}:0011"
-#         all_params.append(npd)
+        # n_persp = new_params_dataset['N_PERSPECTIVE']
+        # for i in range(1, n_persp+1):
+        #     new_param_tmp = copy.deepcopy(new_params_dataset)
+        #     new_param_tmp['PROJECTION']['POINT_IN_ATLEAST'] = i
+        # for n_points in [100, 200, 300, 400, 500]:
+        #     new_param = copy.deepcopy(new_params_dataset)
+        #     new_param['N_POINTS'] = n_points
+        #     for proj in [True, False]:
+        #         new_param2 = copy.deepcopy(new_param)
+        #         new_param2['MPSE']['VARIABLE_PROJECTION'] = proj
+        #         all_params.append(new_param2)
 
 for params in all_params:
     upload_numpy.counter = 0
-    params['tags'] = [str(params['DATASET']), str(params['N_PERSPECTIVE']), str(params['PROJECTION']['PROJ_TYPE']), 'it2']
+    params['tags'] = params['tags'] + [str(params['DATASET']), str(params['N_PERSPECTIVE']), str(params['PROJECTION']['PROJ_TYPE']), 'it2']
     # Assertions
     if params['PROJECTION']['PROJ_TYPE'] == "atleast_in_n_persp":
         assert 1 <= params['PROJECTION']['POINT_IN_ATLEAST'] <= params['N_PERSPECTIVE'], "0 <= POINT_IN_ATLEAST <= N_PERSPECTIVE"
@@ -102,6 +122,7 @@ for params in all_params:
     pp.pprint(EXPERIMENT_NAME)
     pp.pprint(params)
 
+    print("Loading Dataset...")
     points = get_dataset_points(params['DATASET'], params['N_POINTS'])
     params['N_POINTS'] = len(points)
 
@@ -162,6 +183,7 @@ for params in all_params:
     else:
         projection_kwargs['fixed_projections'] = projection_mats
 
+    start = time.time()
     mv = mview.basic(
         dist_mats.copy(),
         batch_size = params['MPSE']['BATCH_SIZE'],
@@ -174,6 +196,9 @@ for params in all_params:
         initial_embedding = np.random.uniform(points.min(), points.max(), (params['N_POINTS'], 3)) if params['INITIAL_EMBEDDING'] else None,
         **projection_kwargs
     )
+    end = time.time()
+
+    run['runtime'] = end - start
 
     run['Results/computation history/Conclusion'] = mv.computation_history[0]['conclusion']
     run['Results/computation history/Actual Iterations Run'] = mv.computation_history[0]['iterations']
@@ -207,7 +232,7 @@ for params in all_params:
 
     # Point Alignment
     print("4 point sample Alignment method:")
-    best_dist, trans_mat = get_4pointsample_transform_mat(embeddings, points)
+    trans_mat, best_dist = get_4pointsample_transform_mat(embeddings, points)
     print("Best Distance :", best_dist)
     print("Transformation matrix :\n", trans_mat)
     prefix = 'Results/Alignment/4PointSample/'
@@ -237,22 +262,22 @@ for params in all_params:
     d_th = max([r[1] - r[0] for r in [range_x, range_y, range_z]])
 
     # 4 point alignment + ICP
-    icp_trans_mat, icp_loss = get_icp_trans_mat(aligned_embeddings, points, d_th=d_th, max_iter=1000)
-    prefix = 'Results/Alignment/4Point_ICP/'
-    if params['UPLOAD_LARGE_VIZ']:
-        run[prefix+'Vis'].upload(File.as_html(
-            plot_3D([
-                    points,
-                    apply_transformation(
-                        apply_transformation(embeddings, trans_mat), 
-                        icp_trans_mat
-                    )
-                ], 
-                colors=['green', 'red']
-            )
-        ))
-    upload_numpy(run, icp_trans_mat, prefix + 'transformation_mat')
-    run[prefix+'error'] = icp_loss
+    # icp_trans_mat, icp_loss = get_icp_trans_mat(aligned_embeddings, points, d_th=d_th, max_iter=1000)
+    # prefix = 'Results/Alignment/4Point_ICP/'
+    # if params['UPLOAD_LARGE_VIZ']:
+    #     run[prefix+'Vis'].upload(File.as_html(
+    #         plot_3D([
+    #                 points,
+    #                 apply_transformation(
+    #                     apply_transformation(embeddings, trans_mat), 
+    #                     icp_trans_mat
+    #                 )
+    #             ], 
+    #             colors=['green', 'red']
+    #         )
+    #     ))
+    # upload_numpy(run, icp_trans_mat, prefix + 'transformation_mat')
+    # run[prefix+'error'] = icp_loss
     
     print("Global RMSE optimization method:")
     trans_mat, loss = get_optimal_trans_mat(embeddings, points)
@@ -266,22 +291,22 @@ for params in all_params:
     run[prefix+'error'] = loss
 
     # Global RMSE + ICP
-    icp_trans_mat, icp_loss = get_icp_trans_mat(aligned_embeddings, points, d_th=d_th, max_iter=1000)
-    prefix = 'Results/Alignment/GlobalRMSE_ICP/'
-    if params['UPLOAD_LARGE_VIZ']:
-        run[prefix+'Vis'].upload(File.as_html(
-            plot_3D([
-                    points,
-                    apply_transformation(
-                        apply_transformation(embeddings, trans_mat), 
-                        icp_trans_mat
-                    )
-                ], 
-                colors=['green', 'red']
-            )
-        ))
-    upload_numpy(run, icp_trans_mat, prefix + 'transformation_mat')
-    run[prefix+'error'] = icp_loss
+    # icp_loss, icp_trans_mat = get_icp_trans_mat(aligned_embeddings, points, d_th=d_th, max_iter=1000)
+    # prefix = 'Results/Alignment/GlobalRMSE_ICP/'
+    # if params['UPLOAD_LARGE_VIZ']:
+    #     run[prefix+'Vis'].upload(File.as_html(
+    #         plot_3D([
+    #                 points,
+    #                 apply_transformation(
+    #                     apply_transformation(embeddings, trans_mat), 
+    #                     icp_trans_mat
+    #                 )
+    #             ], 
+    #             colors=['green', 'red']
+    #         )
+    #     ))
+    # upload_numpy(run, icp_trans_mat, prefix + 'transformation_mat')
+    # run[prefix+'error'] = icp_loss
 
     plt.close('all')
     run.stop()

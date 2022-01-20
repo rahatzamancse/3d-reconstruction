@@ -20,24 +20,31 @@ import pandas as pd
 # )
 import trimesh
 
+from functools import cache
+
+@cache
+def load_modelnet():
+    return tf.keras.utils.get_file(
+        "modelnet.zip",
+        "http://3dvision.princeton.edu/projects/2014/3DShapeNets/ModelNet10.zip",
+        extract=True,
+    )
+
 def get_dataset_points(dataset, n_points=1024, datadir='../Data/toy'):
     if dataset == 'toy_points':
         points = pd.read_csv(f'{datadir}/fullData.csv', header=None).T.to_numpy()
-        points = np.dot(points, getRotationMatrix(90, 'x'))
-        points = np.dot(points, getRotationMatrix(-20, 'x'))
         
     elif dataset.split(':')[0] == "ModelNet10":
-        DATA_DIR = tf.keras.utils.get_file(
-            "modelnet.zip",
-            "http://3dvision.princeton.edu/projects/2014/3DShapeNets/ModelNet10.zip",
-            extract=True,
-        )
+        DATA_DIR = load_modelnet()
         DATA_DIR = os.path.join(os.path.dirname(DATA_DIR), "ModelNet10")
         _, object_name, object_idx = dataset.split(':')
         mesh = trimesh.load(os.path.join(DATA_DIR, f"{object_name}/train/{object_name}_{object_idx}.off"))
         points = mesh.sample(n_points)
-        points = np.dot(points, getRotationMatrix(90, 'x'))
-        points = np.dot(points, getRotationMatrix(-20, 'x'))
+        
+    for i in range(3):
+        points[:, i] = (points[:, i] - points[:, i].min()) / (points[:, i].max() - points[:, i].min())
+    points = np.dot(points, getRotationMatrix(90, 'x'))
+    points = np.dot(points, getRotationMatrix(-20, 'x'))
         
     return points
 
@@ -492,7 +499,7 @@ def get_trans_4_points(points_a, points_b):
 
 def get_4pointsample_transform_mat(points, gt_points, dist_agg_fn=None, t_sample=10000):
     if not dist_agg_fn:
-        dist_agg_fn = lambda x: np.sqrt(np.mean(x*x))
+        dist_agg_fn = lambda x: np.mean(x)
     
     points = np.array(points)
     gt_points = np.array(gt_points)
@@ -515,7 +522,7 @@ def get_4pointsample_transform_mat(points, gt_points, dist_agg_fn=None, t_sample
 
 def get_optimal_trans_mat(points_a, points_b, iterations=10000, dist_agg_fn=None, lr=0.001):
     if not dist_agg_fn:
-        dist_agg_fn = lambda x: tf.math.sqrt(tf.reduce_mean(x*x))
+        dist_agg_fn = lambda x: tf.reduce_mean(x)
     embeddings_tf = tf.convert_to_tensor(points_to_homo(points_a))
     gt_tf = tf.convert_to_tensor(points_to_homo(points_b))
     transform_mat = tf.Variable(np.identity(4), name='x', trainable=True, dtype=tf.float64)
@@ -527,11 +534,27 @@ def get_optimal_trans_mat(points_a, points_b, iterations=10000, dist_agg_fn=None
         return dist_agg_fn(dist)
 
 
-    opt = tf.keras.optimizers.SGD(learning_rate=lr)
+    opt = tf.keras.optimizers.Adam()
 
     for i in tqdm(range(iterations)):
         opt.minimize(loss_fn, transform_mat)
     return transform_mat.numpy(), loss_fn().numpy()
+
+def get_svd_trans(X, Y, dist_agg_fn=None):
+    if not dist_agg_fn:
+        dist_agg_fn = lambda x: np.mean(x)
+    T = np.linalg.inv(X.T @ X) @ Y.T @ X
+    U, Sigma, V = np.linalg.svd(T)
+    T = U @ V
+
+    T = t_to_homo(T)
+    tmp_embedding = apply_transformation(X, T)
+    dist_vec = Y.mean(axis=0) - tmp_embedding.mean(axis=0)
+    dist_vec = Y[0] - tmp_embedding[0]
+    for i in range(3):
+        T[i, 3] = dist_vec[i]
+        
+    return T, dist_agg_fn(np.linalg.norm(apply_transformation(X,T) - Y, axis=1))
 
 # def get_icp_trans_mat(points_a, points_b, d_th=80, max_iter=1000, max_change_ratio=0.000001):
 #     coords_dict = {
