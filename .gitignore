@@ -129,3 +129,4 @@ dmypy.json
 .pyre/
 
 summary/.DS_Store
+.neptune

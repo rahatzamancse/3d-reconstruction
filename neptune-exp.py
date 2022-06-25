@@ -31,14 +31,14 @@ upload_numpy.counter = 0
 EXPERIMENT_NAME_PREFIX = "MPSE-mds"
 init_params = dict(
     # DATASET = 'toy_points',
-    DATASET = 'ModelNet10:chair:0001',
+    DATASET = 'ModelNet10:desk:0013',
     INITIAL_EMBEDDING = False,
     N_POINTS = 256,
-    N_PERSPECTIVE = 2,
+    N_PERSPECTIVE = 10,
     N_PROJECTION_DIM = 2,
     PROJECTION = dict(
         PROJ_TYPE = 'atleast_in_n_persp',
-        POINT_IN_ATLEAST = 1,
+        POINT_IN_ATLEAST = 8,
     ),
     # PROJECTION = dict(
     #     PROJ_TYPE = 'raytracing',
@@ -53,7 +53,7 @@ init_params = dict(
         VERBOSE = 2,
         SMART_INITIALIZATION = True,
         INITIAL_PROJECTIONS = 'cylinder',
-        VARIABLE_PROJECTION = True
+        VARIABLE_PROJECTION = False
     ),
     NUMPY_SEED = seed,
     UPLOAD_LARGE_VIZ = False,
@@ -62,11 +62,32 @@ init_params = dict(
 all_params = [init_params]
 
 # Add all the run configs
+# datasets_to_take = [
+#     # 'ModelNet10:desk:0005', 
+#     'ModelNet10:chair:0001',
+#     'ModelNet10:toilet:0001',
+#     'ModelNet10:table:0002',
+#     'ModelNet10:sofa:0019', 
+#     'ModelNet10:night_stand:0010',
+#     'ModelNet10:monitor:0016', 
+#     # 'ModelNet10:monitor:0003',
+#     # 'ModelNet10:dresser:0001', 
+#     # 'ModelNet10:bathtub:0050',
+#     # 'ModelNet10:bathtub:0005', 
+#     # 'ModelNet10:bed:0003',
+#     # 'ModelNet10:bed:0005', 
+#     'ModelNet10:bed:0001',
+#     'ModelNet10:desk:0013', 
+#     # 'ModelNet10:desk:0006'
+# ]
 
-# for n_points in [200, 300, 400, 500, 600, 700, 800, 900, 1000]:
-#     new_param = copy.deepcopy(init_params)
-#     new_param['N_POINTS'] = n_points
-#     all_params.append(new_param)
+
+template_params = copy.deepcopy(all_params.pop(0))
+for _ in range(5):
+    for n_points in [256, 512]:
+        new_param = copy.deepcopy(template_params)
+        new_param['N_POINTS'] = n_points
+        all_params.append(new_param)
 
 # for _ in range(30):
 #     for n_persp in [4, 8, 12, 14]:
@@ -82,20 +103,21 @@ all_params = [init_params]
 #                 all_params.append(new_param)
 
 
-
-template_params = copy.deepcopy(all_params.pop(0))
-for _ in range(1):
-    for dataset in ['ModelNet10:chair:0001', 'ModelNet10:desk:0005', 'ModelNet10:desk:0006', 'ModelNet10:desk:0013', 'ModelNet10:bed:0001', 'ModelNet10:bed:0005', 'ModelNet10:bed:0003', 'ModelNet10:bathtub:0005', 'ModelNet10:bathtub:0050', 'ModelNet10:dresser:0001', 'ModelNet10:monitor:0003', 'ModelNet10:monitor:0016', 'ModelNet10:night_stand:0010', 'ModelNet10:sofa:0019', 'ModelNet10:table:0002','ModelNet10:toilet:0001']:
-        new_params_dataset = copy.deepcopy(template_params)
-        new_params_dataset['DATASET'] = dataset
-        for n_persp in range(2, 13):
-            new_param_tmp = copy.deepcopy(new_params_dataset)
-            new_param_tmp['N_PERSPECTIVE'] = n_persp
-            new_param_tmp['PROJECTION']['POINT_IN_ATLEAST'] = int(np.ceil(n_persp/2))
-            for proj in [True, False]:
-                new_param2 = copy.deepcopy(new_param_tmp)
-                new_param2['MPSE']['VARIABLE_PROJECTION'] = proj
-                all_params.append(new_param2)
+# template_params = copy.deepcopy(all_params.pop(0))
+# for _ in range(1):
+#     for dataset in datasets_to_take:
+#         new_params_dataset = copy.deepcopy(template_params)
+#         new_params_dataset['DATASET'] = dataset
+#         for n_persp in range(2, 13):
+#             new_param_tmp = copy.deepcopy(new_params_dataset)
+#             new_param_tmp['N_PERSPECTIVE'] = n_persp
+#             for p_in_persp in range(1, n_persp+1):
+#                 new2 = copy.deepcopy(new_param_tmp)
+#                 new2['PROJECTION']['POINT_IN_ATLEAST'] = p_in_persp
+#                 for proj in [True, False]:
+#                     new_param2 = copy.deepcopy(new2)
+#                     new_param2['MPSE']['VARIABLE_PROJECTION'] = proj
+#                     all_params.append(new_param2)
 
         # n_persp = new_params_dataset['N_PERSPECTIVE']
         # for i in range(1, n_persp+1):
