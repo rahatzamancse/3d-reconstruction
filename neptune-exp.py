@@ -7,8 +7,6 @@ from neptune.new.types import File
 from matplotlib import pyplot as plt
 from plotly.io import to_html
 import numpy as np
-seed = np.random.randint(1, 500)
-np.random.seed(seed)
 from tqdm import tqdm
 import time
 
@@ -25,39 +23,41 @@ def upload_numpy(run, data, location):
     np.save(file_name, data)
     run[location].upload(file_name)
 upload_numpy.counter = 0
-
-
 # Parameters
-EXPERIMENT_NAME_PREFIX = "MPSE-mds"
+EXPERIMENT_NAME_PREFIX = "MPSE-on-LMNET-dataset"
 init_params = dict(
     # DATASET = 'toy_points',
-    DATASET = 'ModelNet10:desk:0013',
+    # DATASET = 'ModelNet10:desk:0013',
+    DATASET = 'ShapeNet:chair:bf91d0169eae3bfdd810b14a81e12eca',
+    DATA_DIR = '/run/media/insane/My 4TB 2/Big Data/MPSE/Data/ShapeNetCore/ShapeNetCore.v2',
+    NORMALIZE_DATASET_POINTS = False,
     INITIAL_EMBEDDING = False,
-    N_POINTS = 256,
-    N_PERSPECTIVE = 10,
+    N_POINTS = 512,
+    N_PERSPECTIVE = 4,
     N_PROJECTION_DIM = 2,
     PROJECTION = dict(
         PROJ_TYPE = 'atleast_in_n_persp',
-        POINT_IN_ATLEAST = 8,
+        POINT_IN_ATLEAST = 3,
     ),
     # PROJECTION = dict(
     #     PROJ_TYPE = 'raytracing',
-    #     N_XRAYS = 200,
-    #     N_YRAYS = 200,
+    #     N_XRAYS = 600,
+    #     N_YRAYS = 600,
     # ),
     MPSE = dict(
-        BATCH_SIZE = 256,
+        BATCH_SIZE = 2048,
         MAX_ITER = 300,
-        MIN_GRAD = 1e-10,
-        MIN_COST = 1e-10,
+        MIN_GRAD = 1e-4,
+        MIN_COST = 1e-4,
         VERBOSE = 2,
         SMART_INITIALIZATION = True,
         INITIAL_PROJECTIONS = 'cylinder',
-        VARIABLE_PROJECTION = False
+        VARIABLE_PROJECTION = True
     ),
-    NUMPY_SEED = seed,
+    # NUMPY_SEED = seed,
     UPLOAD_LARGE_VIZ = False,
-    tags = []
+    UPLOAD_MPSE_FIGS = False,
+    tags = ['variation-VARIABLE_PROJECTION_VIEWPOINTS_VISIBLE']
 )
 all_params = [init_params]
 
@@ -81,59 +81,150 @@ all_params = [init_params]
 #     # 'ModelNet10:desk:0006'
 # ]
 
+datasets_to_take = [
+    'ShapeNet:airplane:103c9e43cdf6501c62b600da24e0965',
+    'ShapeNet:airplane:105f7f51e4140ee4b6b87e72ead132ed',
+    'ShapeNet:airplane:10e4331c34d610dacc14f1e6f4f4f49b',
+    'ShapeNet:airplane:d405b9e5f942fed5efe5d5ae25ee424e',
+    'ShapeNet:airplane:157bb84c08754307dff9b4d1071b12d7',
+    'ShapeNet:airplane:8cf06a71987992cf90a51833252023c7',
+
+    'ShapeNet:bench:42ffe8d78c2e8da9d40c07d3c15cc681',
+    'ShapeNet:bench:cad0a0e60708ab662ab293e158725cf0',
+    'ShapeNet:bench:cca18c7f8636606f51f77a6d7299806',
+    'ShapeNet:bench:89e2eaeb437cd42f85e40cb3507a0145',
+    'ShapeNet:bench:702870d836ea3bf32056b4bd5d870b47',
+    'ShapeNet:bench:fc0486ec53630bdbd2b12aa6a0f050b3',
+
+    'ShapeNet:car:44f30f4c65c3142a16abce8cb03e7794',
+    'ShapeNet:car:d9034b15c7f295551a46c391b387480b',
+    'ShapeNet:car:35de0d0cc71179dc1a98dff5b6c5dec6',
+    'ShapeNet:car:d6f8cfdb1659142814fccfc8a25361e',
+    'ShapeNet:car:d79f66a4566ff981424db5a60837de26',
+
+    'ShapeNet:chair:bf91d0169eae3bfdd810b14a81e12eca',
+    'ShapeNet:chair:6a3d2feff3783804387379bbd607d69e',
+    'ShapeNet:chair:cd6a8020b69455dbb161f36d4e309050',
+    'ShapeNet:chair:cd9702520ad57689bbc7a6acbd8f058b',
+
+    'ShapeNet:lamp:102273fdf8d1b90041fbc1e2da054acb',
+    'ShapeNet:lamp:fa0a32c4326a42fef51f77a6d7299806',
+    'ShapeNet:lamp:e6d62a37e187bde599284d844aba7576',
+
+    'ShapeNet:rifle:10cc9af8877d795c93c9577cd4b35faa',
+    'ShapeNet:rifle:81ba8d540499dd04834bde3f2f2e7c0c',
+    'ShapeNet:rifle:823b97177d57e5dd8e0bef156e045efe',
+    'ShapeNet:rifle:f55544d331eb019a1aca20a2bd5ca645',
+
+    'ShapeNet:table:105b9a03ddfaf5c5e7828dbf1991f6a4',
+    'ShapeNet:table:c3884d2d31ac0ac9593ebeeedbff73b',
+    'ShapeNet:table:16961ddf69b6e91ea8ff4f6e9563bff6',
+    'ShapeNet:table:86e6ef5ae3420e95963080fd7249126d',
+
+    'ShapeNet:sofa:79bea3f7c72e0aae490ad276cd2af3a4',
+    'ShapeNet:sofa:cff485b2c98410135dda488a4bbb1e1',
+    'ShapeNet:sofa:d5a2b159a5fbbc4c510e2ce46c1af6e',
+    'ShapeNet:sofa:d8c748ced5e5f2cc7e3820d17093b7c2'
+]
+
+dataset_tags = {
+    'ShapeNet:airplane:103c9e43cdf6501c62b600da24e0965': 'S1-1',
+    'ShapeNet:airplane:105f7f51e4140ee4b6b87e72ead132ed': 'S1-6',
+    'ShapeNet:airplane:10e4331c34d610dacc14f1e6f4f4f49b': '3-2',
+    'ShapeNet:airplane:d405b9e5f942fed5efe5d5ae25ee424e': 'S1-1',
+    'ShapeNet:airplane:157bb84c08754307dff9b4d1071b12d7': 'S1-3',
+    'ShapeNet:airplane:8cf06a71987992cf90a51833252023c7': '3-1',
+
+    'ShapeNet:bench:42ffe8d78c2e8da9d40c07d3c15cc681': '3-4',
+    'ShapeNet:bench:cad0a0e60708ab662ab293e158725cf0': 'S1-8',
+    'ShapeNet:bench:cca18c7f8636606f51f77a6d7299806': 'S1-7',
+    'ShapeNet:bench:89e2eaeb437cd42f85e40cb3507a0145': 'S1-12',
+    'ShapeNet:bench:702870d836ea3bf32056b4bd5d870b47': 'S1-11',
+    'ShapeNet:bench:fc0486ec53630bdbd2b12aa6a0f050b3': 'S1-10',
+
+    'ShapeNet:car:44f30f4c65c3142a16abce8cb03e7794': '3-6',
+    'ShapeNet:car:d9034b15c7f295551a46c391b387480b': 'S1-17',
+    'ShapeNet:car:35de0d0cc71179dc1a98dff5b6c5dec6': 'S1-13',
+    'ShapeNet:car:d6f8cfdb1659142814fccfc8a25361e': 'S1-16',
+    'ShapeNet:car:d79f66a4566ff981424db5a60837de26': 'S1-15',
+
+    'ShapeNet:chair:bf91d0169eae3bfdd810b14a81e12eca': '3-8',
+    'ShapeNet:chair:6a3d2feff3783804387379bbd607d69e': '1-7',
+    'ShapeNet:chair:cd6a8020b69455dbb161f36d4e309050': 'S1-20',
+    'ShapeNet:chair:cd9702520ad57689bbc7a6acbd8f058b': 'S1-21',
+
+    'ShapeNet:lamp:102273fdf8d1b90041fbc1e2da054acb': '3-9',
+    'ShapeNet:lamp:fa0a32c4326a42fef51f77a6d7299806': 'S2-19',
+    'ShapeNet:lamp:e6d62a37e187bde599284d844aba7576': 'S2-18',
+
+    'ShapeNet:rifle:10cc9af8877d795c93c9577cd4b35faa': 'S2-2',
+    'ShapeNet:rifle:81ba8d540499dd04834bde3f2f2e7c0c': 'S2-4',
+    'ShapeNet:rifle:823b97177d57e5dd8e0bef156e045efe': '3-10',
+    'ShapeNet:rifle:f55544d331eb019a1aca20a2bd5ca645': 'S2-3',
+
+    'ShapeNet:table:105b9a03ddfaf5c5e7828dbf1991f6a4': 'S2-11',
+    'ShapeNet:table:c3884d2d31ac0ac9593ebeeedbff73b': 'S2-15',
+    'ShapeNet:table:16961ddf69b6e91ea8ff4f6e9563bff6': 'S2-16',
+    'ShapeNet:table:86e6ef5ae3420e95963080fd7249126d': 'S2-14',
+
+    'ShapeNet:sofa:79bea3f7c72e0aae490ad276cd2af3a4': 'S2-8',
+    'ShapeNet:sofa:cff485b2c98410135dda488a4bbb1e1': 'S2-5',
+    'ShapeNet:sofa:d5a2b159a5fbbc4c510e2ce46c1af6e': 'S2-6',
+    'ShapeNet:sofa:d8c748ced5e5f2cc7e3820d17093b7c2': '3-5',
+}
+
+project = neptune.get_project(
+    name='rahatzamancse/MPSE-on-LMNET-dataset', 
+    api_token='eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI3NDk5MWVkNS0wMDg4LTRmNTktYWQyZC0zNzUyNTg0MTY1MGYifQ=='
+)
+
+# Get dashboard with runs contributed by 'sophia' tagged 'cycleLR'
+run_table_df = project.fetch_runs_table(
+    owner='rahatzamancse',
+).to_pandas()
 
 template_params = copy.deepcopy(all_params.pop(0))
-for _ in range(5):
-    for n_points in [256, 512]:
-        new_param = copy.deepcopy(template_params)
-        new_param['N_POINTS'] = n_points
-        all_params.append(new_param)
+MIN_NUMBER_OF_RUN_REQUIRED = 5
+for dataset in datasets_to_take:
+    new_param = copy.deepcopy(template_params)
+    new_param['DATASET'] = dataset
+    new_param['tags'].append(dataset_tags[dataset])
+    for viewpoints in [3, 5, 7, 2, 4, 6, 8]:
+        new_param = copy.deepcopy(new_param)
+        new_param['N_PERSPECTIVE'] = viewpoints
+        for points_visible in range(1, viewpoints+1):
+            new_param = copy.deepcopy(new_param)
+            new_param['PROJECTION']['POINT_IN_ATLEAST'] = points_visible
+            for proj in [True, False]:
+                new_param = copy.deepcopy(new_param)
+                new_param['MPSE']['VARIABLE_PROJECTION'] = proj
 
-# for _ in range(30):
-#     for n_persp in [4, 8, 12, 14]:
-#     # for n_persp in [12, 14]:
-#         new_param_tmp = copy.deepcopy(init_params)
-#         new_param_tmp['N_PERSPECTIVE'] = n_persp
-#         for i in range(1, n_persp+1):
-#             new_param_tmp2 = copy.deepcopy(new_param_tmp)
-#             new_param_tmp2['PROJECTION']['POINT_IN_ATLEAST'] = i
-#             for proj in [True, False]:
-#                 new_param = copy.deepcopy(new_param_tmp2)
-#                 new_param['MPSE']['VARIABLE_PROJECTION'] = proj
-#                 all_params.append(new_param)
+                existing_runs = run_table_df[
+                    (run_table_df['parameters/DATASET'] == new_param['DATASET'])
+                    & (run_table_df['parameters/INITIAL_EMBEDDING'] == new_param['INITIAL_EMBEDDING'])
+                    & (run_table_df['parameters/MPSE/BATCH_SIZE'] == new_param['MPSE']['BATCH_SIZE'])
+                    & (run_table_df['parameters/MPSE/SMART_INITIALIZATION'] == new_param['MPSE']['SMART_INITIALIZATION'])
+                    & (run_table_df['parameters/MPSE/VARIABLE_PROJECTION'] == new_param['MPSE']['VARIABLE_PROJECTION'])
+                    & (run_table_df['parameters/N_POINTS'] == new_param['N_POINTS'])
+                    & (run_table_df['parameters/N_PERSPECTIVE'] == new_param['N_PERSPECTIVE'])
+                    & (run_table_df['parameters/PROJECTION/POINT_IN_ATLEAST'] == new_param['PROJECTION']['POINT_IN_ATLEAST'])
+                    & (run_table_df['parameters/PROJECTION/PROJ_TYPE'] == new_param['PROJECTION']['PROJ_TYPE'])
+                ]
 
+                for _ in range(MIN_NUMBER_OF_RUN_REQUIRED - len(existing_runs)):
+                    seed = np.random.randint(1, 500)
+                    np.random.seed(seed)
+                    new_param['NUMPY_SEED'] = seed
+                    all_params.append(new_param)
+                else:
+                    print("Skipping this run as it already exists in experiment:", existing_runs['sys/id'].tolist())
 
-# template_params = copy.deepcopy(all_params.pop(0))
-# for _ in range(1):
-#     for dataset in datasets_to_take:
-#         new_params_dataset = copy.deepcopy(template_params)
-#         new_params_dataset['DATASET'] = dataset
-#         for n_persp in range(2, 13):
-#             new_param_tmp = copy.deepcopy(new_params_dataset)
-#             new_param_tmp['N_PERSPECTIVE'] = n_persp
-#             for p_in_persp in range(1, n_persp+1):
-#                 new2 = copy.deepcopy(new_param_tmp)
-#                 new2['PROJECTION']['POINT_IN_ATLEAST'] = p_in_persp
-#                 for proj in [True, False]:
-#                     new_param2 = copy.deepcopy(new2)
-#                     new_param2['MPSE']['VARIABLE_PROJECTION'] = proj
-#                     all_params.append(new_param2)
+print("Total experiments to run:", len(all_params))
 
-        # n_persp = new_params_dataset['N_PERSPECTIVE']
-        # for i in range(1, n_persp+1):
-        #     new_param_tmp = copy.deepcopy(new_params_dataset)
-        #     new_param_tmp['PROJECTION']['POINT_IN_ATLEAST'] = i
-        # for n_points in [100, 200, 300, 400, 500]:
-        #     new_param = copy.deepcopy(new_params_dataset)
-        #     new_param['N_POINTS'] = n_points
-        #     for proj in [True, False]:
-        #         new_param2 = copy.deepcopy(new_param)
-        #         new_param2['MPSE']['VARIABLE_PROJECTION'] = proj
-        #         all_params.append(new_param2)
-
-for params in all_params:
+for exp_i, params in enumerate(all_params):
+    print(f"Running experiment:{exp_i}/{len(all_params)}")
     upload_numpy.counter = 0
-    params['tags'] = params['tags'] + [str(params['DATASET']), str(params['N_PERSPECTIVE']), str(params['PROJECTION']['PROJ_TYPE']), 'it2']
+    params['tags'] = params['tags'] + [str(params['DATASET']), str(params['N_PERSPECTIVE']), str(params['PROJECTION']['PROJ_TYPE']), 'lmnet']
     # Assertions
     if params['PROJECTION']['PROJ_TYPE'] == "atleast_in_n_persp":
         assert 1 <= params['PROJECTION']['POINT_IN_ATLEAST'] <= params['N_PERSPECTIVE'], "0 <= POINT_IN_ATLEAST <= N_PERSPECTIVE"
@@ -145,12 +236,12 @@ for params in all_params:
     pp.pprint(params)
 
     print("Loading Dataset...")
-    points = get_dataset_points(params['DATASET'], params['N_POINTS'])
+    points = get_dataset_points(params['DATASET'], n_points=params['N_POINTS'], datadir=params['DATA_DIR'], normalize=params['NORMALIZE_DATASET_POINTS'])
     params['N_POINTS'] = len(points)
 
     ## Neptune
     run = neptune.init(
-        project="rahatzamancse/MPSE-mds",
+        project="rahatzamancse/MPSE-on-LMNET-dataset",
         api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI3NDk5MWVkNS0wMDg4LTRmNTktYWQyZC0zNzUyNTg0MTY1MGYifQ==",
         source_files=["neptune-exp.py", "utils.py"],
         capture_hardware_metrics=False,
@@ -193,6 +284,10 @@ for params in all_params:
 
     dist_mats, weights_mats = get_dist_weights(labeled_perspectives, len(points), params['N_PROJECTION_DIM'])
 
+    baseline = get_baseline_metrics(points, dist_mats)
+    run['Results/Baseline/4point_ICP_Chamfer'] = baseline['chamfer']
+    run['Results/Baseline/4point_ICP_EMD'] = baseline['EMD']
+
     points_per_persp = np.array(show_points_least_persp(weights_mats))
     points_per_persp = points_per_persp/points_per_persp.max() * 100
 
@@ -233,15 +328,15 @@ for params in all_params:
             run[f'Results/computation history/{item}'].log(val)
 
     # Plots from MPSE mview
-    fig = mv.plot_computations()
-    run['Results/Computations'].upload(fig)
-    plt.close(fig)
-    # fig = mv.plot_embedding()
-    # run['Results/MPSE_embedding'].upload(fig)
-    # plt.close(fig)
-    fig = mv.plot_images()
-    run['Results/Perspectives'].upload(fig)
-    plt.close(fig)
+    if params['UPLOAD_MPSE_FIGS']:
+        fig = mv.plot_computations()
+        run['Results/Computations'].upload(fig)
+        plt.close(fig)
+
+        fig = mv.plot_images()
+        run['Results/Perspectives'].upload(fig)
+        plt.close(fig)
+
     upload_numpy(run, mv.projections, 'Results/Final Projections')
     upload_numpy(run, np.array(projection_mats), 'GT/Projections')
 
@@ -252,22 +347,23 @@ for params in all_params:
         ))
     upload_numpy(run, embeddings, 'Results/Embedding_X')
 
+    ## Metrics
+
     # Point Alignment
-    print("4 point sample Alignment method:")
-    trans_mat, best_dist = get_4pointsample_transform_mat(embeddings, points)
-    print("Best Distance :", best_dist)
-    print("Transformation matrix :\n", trans_mat)
-    prefix = 'Results/Alignment/4PointSample/'
-    aligned_embeddings = apply_transformation(embeddings, trans_mat)
-    if params['UPLOAD_LARGE_VIZ']:
-        run[prefix+'Vis'].upload(File.as_html(
-            plot_3D([points, aligned_embeddings], colors=['green', 'red'])
-        ))
-    upload_numpy(run, trans_mat, prefix+'transformation_mat')
-    run[prefix+'error'] = best_dist
+    # print("4 point sample Alignment method:")
+    # trans_mat, best_dist = get_4pointsample_transform_mat(embeddings, points)
+    # print("Best Distance :", best_dist)
+    # print("Transformation matrix :\n", trans_mat)
+    # prefix = 'Results/Alignment/4PointSample/'
+    # aligned_embeddings = apply_transformation(embeddings, trans_mat)
+    # if params['UPLOAD_LARGE_VIZ']:
+    #     run[prefix+'Vis'].upload(File.as_html(
+    #         plot_3D([points, aligned_embeddings], colors=['green', 'red'])
+    #     ))
+    # upload_numpy(run, trans_mat, prefix+'transformation_mat')
+    # run[prefix+'error'] = best_dist
 
-
-
+    # 4 point alignment + ICP
     range_x = [
         points[:, 0].min(),
         points[:, 0].max()
@@ -283,52 +379,39 @@ for params in all_params:
     
     d_th = max([r[1] - r[0] for r in [range_x, range_y, range_z]])
 
-    # 4 point alignment + ICP
-    # icp_trans_mat, icp_loss = get_icp_trans_mat(aligned_embeddings, points, d_th=d_th, max_iter=1000)
-    # prefix = 'Results/Alignment/4Point_ICP/'
-    # if params['UPLOAD_LARGE_VIZ']:
-    #     run[prefix+'Vis'].upload(File.as_html(
-    #         plot_3D([
-    #                 points,
-    #                 apply_transformation(
-    #                     apply_transformation(embeddings, trans_mat), 
-    #                     icp_trans_mat
-    #                 )
-    #             ], 
-    #             colors=['green', 'red']
-    #         )
-    #     ))
-    # upload_numpy(run, icp_trans_mat, prefix + 'transformation_mat')
-    # run[prefix+'error'] = icp_loss
-    
-    print("Global RMSE optimization method:")
-    trans_mat, loss = get_optimal_trans_mat(embeddings, points)
-    prefix = 'Results/Alignment/Global-RMSE-opt/'
-    aligned_embeddings = apply_transformation(embeddings, trans_mat)
+    # icp_trans_mat, icp_loss = get_icp_trans_mat_by_random_rotation(embeddings, points, d_th=d_th, max_iter=1000)
+    trans_mat, loss = get_4pointsample_transform_mat(embeddings, points)
+    prefix = 'Results/Alignment/ICP/'
     if params['UPLOAD_LARGE_VIZ']:
         run[prefix+'Vis'].upload(File.as_html(
-            plot_3D([points, aligned_embeddings], colors=['green', 'red'])
+            plot_3D([
+                    points,
+                    apply_transformation(
+                        apply_transformation(embeddings, trans_mat), 
+                        icp_trans_mat
+                    )
+                ], 
+                colors=['green', 'red']
+            )
         ))
-    upload_numpy(run, trans_mat, prefix+'transformation_mat')
+    upload_numpy(run, trans_mat, prefix + 'transformation_mat')
     run[prefix+'error'] = loss
+    champ_dist = chamfer_distance_numpy(np.expand_dims(apply_transformation(embeddings, trans_mat), axis=0), np.expand_dims(points, axis=0))
+    run[prefix+'chamfer_distancex100'] = champ_dist
+    run[prefix+'EMDx100'] = emd(apply_transformation(embeddings, trans_mat), points)
 
-    # Global RMSE + ICP
-    # icp_loss, icp_trans_mat = get_icp_trans_mat(aligned_embeddings, points, d_th=d_th, max_iter=1000)
-    # prefix = 'Results/Alignment/GlobalRMSE_ICP/'
+    
+    # print("Global RMSE optimization method:")
+    # trans_mat, loss = get_optimal_trans_mat(embeddings, points)
+    # prefix = 'Results/Alignment/Global-RMSE-opt/'
+    # aligned_embeddings = apply_transformation(embeddings, trans_mat)
     # if params['UPLOAD_LARGE_VIZ']:
     #     run[prefix+'Vis'].upload(File.as_html(
-    #         plot_3D([
-    #                 points,
-    #                 apply_transformation(
-    #                     apply_transformation(embeddings, trans_mat), 
-    #                     icp_trans_mat
-    #                 )
-    #             ], 
-    #             colors=['green', 'red']
-    #         )
+    #         plot_3D([points, aligned_embeddings], colors=['green', 'red'])
     #     ))
-    # upload_numpy(run, icp_trans_mat, prefix + 'transformation_mat')
-    # run[prefix+'error'] = icp_loss
+    # upload_numpy(run, trans_mat, prefix+'transformation_mat')
+    # run[prefix+'error'] = loss
 
+    run.sync(wait=True)
     plt.close('all')
     run.stop()
