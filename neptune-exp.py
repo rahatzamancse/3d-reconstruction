@@ -17,6 +17,10 @@ from utils import *
 
 import pprint as pp
 
+pix3d_datadir = '/run/media/insane/My 4TB 2/Big Data/MPSE/Data/pix3d/'
+shapened_datadir = '/run/media/insane/My 4TB 2/Big Data/MPSE/Data/ShapeNetCore/ShapeNetCore.v2'
+modelnet_datadir = None
+
 def upload_numpy(run, data, location):
     upload_numpy.counter += 1
     file_name = f"/tmp/{upload_numpy.counter}.npy"
@@ -28,8 +32,8 @@ EXPERIMENT_NAME_PREFIX = "MPSE-on-LMNET-dataset"
 init_params = dict(
     # DATASET = 'toy_points',
     # DATASET = 'ModelNet10:desk:0013',
-    DATASET = 'ShapeNet:chair:bf91d0169eae3bfdd810b14a81e12eca',
-    DATA_DIR = '/run/media/insane/My 4TB 2/Big Data/MPSE/Data/ShapeNetCore/ShapeNetCore.v2',
+    DATASET = 'Pix3D:chair:0001',
+    DATA_DIR = pix3d_datadir,
     NORMALIZE_DATASET_POINTS = False,
     INITIAL_EMBEDDING = False,
     N_POINTS = 512,
@@ -57,7 +61,7 @@ init_params = dict(
     # NUMPY_SEED = seed,
     UPLOAD_LARGE_VIZ = False,
     UPLOAD_MPSE_FIGS = False,
-    tags = ['variation-VARIABLE_PROJECTION_VIEWPOINTS_VISIBLE']
+    tags = ['pix3d']
 )
 all_params = [init_params]
 
@@ -80,6 +84,11 @@ all_params = [init_params]
 #     'ModelNet10:desk:0013', 
 #     # 'ModelNet10:desk:0006'
 # ]
+
+pix3D_dataset = [
+    'Pix3D:chair:0132',
+    'Pix3D:chair:1582',
+]
 
 datasets_to_take = [
     'ShapeNet:airplane:103c9e43cdf6501c62b600da24e0965',
@@ -184,12 +193,12 @@ run_table_df = project.fetch_runs_table(
 ).to_pandas()
 
 template_params = copy.deepcopy(all_params.pop(0))
-MIN_NUMBER_OF_RUN_REQUIRED = 5
-for dataset in datasets_to_take:
+MIN_NUMBER_OF_RUN_REQUIRED = 2
+for dataset in pix3D_dataset:
     new_param = copy.deepcopy(template_params)
     new_param['DATASET'] = dataset
-    new_param['tags'].append(dataset_tags[dataset])
-    for viewpoints in [3, 5, 7, 2, 4, 6, 8]:
+    # new_param['tags'].append(dataset_tags[dataset])
+    for viewpoints in [2, 3, 4, 5, 6, 7, 8]:
         new_param = copy.deepcopy(new_param)
         new_param['N_PERSPECTIVE'] = viewpoints
         for points_visible in range(1, viewpoints+1):

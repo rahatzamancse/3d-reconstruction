@@ -23,6 +23,7 @@ from functools import cache
 from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 from sklearn.manifold import MDS
+import json
 
 shapenet_category_to_id = {
     'airplane'	: '02691156',
@@ -99,13 +100,28 @@ def get_dataset_points(dataset, datadir, n_points=1024, normalize=False):
     elif dataset.split(':')[0] == "ModelNet10":
         datadir = load_modelnet()
         _, object_name, object_idx = dataset.split(':')
-        mesh = trimesh.load(os.path.join(datadir, f"{object_name}/train/{object_name}_{object_idx}.off"))
+        obj_path = os.path.join('/'.join(datadir.split('/')[:-1]), f"ModelNet10/{object_name}/train/{object_name}_{object_idx}.off")
+        print(obj_path)
+        mesh = trimesh.load(obj_path)
         points = mesh.sample(n_points)
         
     elif dataset.split(':')[0] == "ShapeNet":
         _, object_name, object_idx = dataset.split(':')
         object_name = shapenet_category_to_id[object_name]
         scene_or_mesh = trimesh.load(os.path.join(datadir, f"{object_name}/{object_idx}/models/model_normalized.obj"))
+        points = as_mesh(scene_or_mesh).sample(n_points)
+        
+    elif dataset.split(':')[0] == 'Pix3D':
+        with open(os.path.join(datadir, 'pix3d.json')) as f:
+            metadata = json.load(f)
+        _, category, obj_id = dataset.split(':')
+        img_names = [f'img/{category}/{obj_id}.png', f'img/{category}/{obj_id}.jpg']
+        obj_path = None
+        for obj in metadata:
+            if 'img' in obj and obj['img'] in img_names:
+                obj_path = obj['model']
+                break
+        scene_or_mesh = trimesh.load(os.path.join(datadir, obj_path))
         points = as_mesh(scene_or_mesh).sample(n_points)
         
     if normalize:
