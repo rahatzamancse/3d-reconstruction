@@ -202,8 +202,6 @@ def add_noise(distance_matrix, noise_amount=0.01, noise_level=0.01, in_place=Tru
     return distance_matrix
     
 
-def add_matching_noise(perspectives, noise_amount=0.01, noise_level=0.01):
-    n = len(perspectives[0])
     
 
     

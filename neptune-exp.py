@@ -220,7 +220,7 @@ for dataset in [
     #     new_param = copy.deepcopy(new_param)
     #     new_param['MPSE']['SMART_INITIALIZATION'] = smart_init
 
-    for angle_range in map(lambda end: {'START': 0, 'END': end}, [360, 180, 90, 60, 45]):
+    for angle_range in map(lambda end: {'START': 0, 'END': end}, [270, 135, 120, 105, 90, 75, 30]):
         new_param = copy.deepcopy(new_param)
         new_param['ANGLE_RANGE'] = angle_range
     # for noise_amount in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
