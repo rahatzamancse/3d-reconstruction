@@ -15,10 +15,12 @@ import copy
 from MPSE.MPSE import mview
 from utils import *
 
-import pprint as pp
+from rich.console import Console
+from rich.progress import track
+console = Console()
 
 pix3d_datadir = '/run/media/insane/My 4TB 2/Big Data/MPSE/Data/pix3d/'
-shapened_datadir = '/run/media/insane/My 4TB 2/Big Data/MPSE/Data/ShapeNetCore/ShapeNetCore.v2'
+shapenet_datadir = '/run/media/insane/My 4TB 2/Big Data/MPSE/Data/ShapeNetCore/ShapeNetCore.v2'
 modelnet_datadir = None
 
 def upload_numpy(run, data, location):
@@ -27,21 +29,32 @@ def upload_numpy(run, data, location):
     np.save(file_name, data)
     run[location].upload(file_name)
 upload_numpy.counter = 0
+
+
 # Parameters
-EXPERIMENT_NAME_PREFIX = "MPSE-on-LMNET-dataset"
+EXPERIMENT_NAME_PREFIX = "AngleRange"
 init_params = dict(
     # DATASET = 'toy_points',
     # DATASET = 'ModelNet10:desk:0013',
     DATASET = 'Pix3D:chair:0001',
-    DATA_DIR = pix3d_datadir,
-    NORMALIZE_DATASET_POINTS = False,
+    # DATA_DIR = pix3d_datadir,
+    DATA_DIR = shapenet_datadir,
+    NORMALIZE_DATASET_POINTS = True,
     INITIAL_EMBEDDING = False,
+    # NOISE_TYPE='permutation',
+    NOISE_TYPE='distance',
+    NOISE_AMOUNT = 0.0,
+    NOISE_AMP = 0.0,
     N_POINTS = 512,
-    N_PERSPECTIVE = 4,
+    N_PERSPECTIVE = 5,
     N_PROJECTION_DIM = 2,
+    ANGLE_RANGE = dict(
+        START=0,
+        END=360
+    ),
     PROJECTION = dict(
         PROJ_TYPE = 'atleast_in_n_persp',
-        POINT_IN_ATLEAST = 3,
+        POINT_IN_ATLEAST = 4,
     ),
     # PROJECTION = dict(
     #     PROJ_TYPE = 'raytracing',
@@ -53,7 +66,7 @@ init_params = dict(
         MAX_ITER = 300,
         MIN_GRAD = 1e-4,
         MIN_COST = 1e-4,
-        VERBOSE = 2,
+        VERBOSE = 0,
         SMART_INITIALIZATION = True,
         INITIAL_PROJECTIONS = 'cylinder',
         VARIABLE_PROJECTION = True
@@ -61,7 +74,7 @@ init_params = dict(
     # NUMPY_SEED = seed,
     UPLOAD_LARGE_VIZ = False,
     UPLOAD_MPSE_FIGS = False,
-    tags = ['pix3d']
+    tags = ['angle-variable-projection']
 )
 all_params = [init_params]
 
@@ -183,31 +196,49 @@ dataset_tags = {
 }
 
 project = neptune.get_project(
-    name='rahatzamancse/MPSE-on-LMNET-dataset', 
+    name='rahatzamancse/3DMPE-angle-noise', 
     api_token='eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI3NDk5MWVkNS0wMDg4LTRmNTktYWQyZC0zNzUyNTg0MTY1MGYifQ=='
 )
 
-# Get dashboard with runs contributed by 'sophia' tagged 'cycleLR'
 run_table_df = project.fetch_runs_table(
     owner='rahatzamancse',
 ).to_pandas()
 
-template_params = copy.deepcopy(all_params.pop(0))
-MIN_NUMBER_OF_RUN_REQUIRED = 2
-for dataset in pix3D_dataset:
-    new_param = copy.deepcopy(template_params)
+new_param = copy.deepcopy(all_params.pop(0))
+MIN_NUMBER_OF_RUN_REQUIRED = 4
+for dataset in [
+        'ModelNet10:chair:0001',
+        'ShapeNet:airplane:103c9e43cdf6501c62b600da24e0965',
+        'ShapeNet:table:105b9a03ddfaf5c5e7828dbf1991f6a4',
+        'ShapeNet:sofa:79bea3f7c72e0aae490ad276cd2af3a4',
+        'ShapeNet:rifle:81ba8d540499dd04834bde3f2f2e7c0c',
+    ]:
+    new_param = copy.deepcopy(new_param)
     new_param['DATASET'] = dataset
-    # new_param['tags'].append(dataset_tags[dataset])
-    for viewpoints in [2, 3, 4, 5, 6, 7, 8]:
-        new_param = copy.deepcopy(new_param)
-        new_param['N_PERSPECTIVE'] = viewpoints
-        for points_visible in range(1, viewpoints+1):
-            new_param = copy.deepcopy(new_param)
-            new_param['PROJECTION']['POINT_IN_ATLEAST'] = points_visible
-            for proj in [True, False]:
-                new_param = copy.deepcopy(new_param)
-                new_param['MPSE']['VARIABLE_PROJECTION'] = proj
+    
+    # for smart_init in [True, False]:
+    #     new_param = copy.deepcopy(new_param)
+    #     new_param['MPSE']['SMART_INITIALIZATION'] = smart_init
 
+    for angle_range in map(lambda end: {'START': 0, 'END': end}, [360, 180, 90, 60, 45]):
+        new_param = copy.deepcopy(new_param)
+        new_param['ANGLE_RANGE'] = angle_range
+    # for noise_amount in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+    #     new_param = copy.deepcopy(new_param)
+    #     new_param['NOISE_AMOUNT'] = noise_amount
+    
+    #     # for noise_amp in [0.01, 0.03, 0.05, 0.09]:
+    #     for noise_amp in [0.05, 0.1, 0.2, 0.3, 0.4, 0.5]:
+    #         new_param = copy.deepcopy(new_param)
+    #         new_param['NOISE_AMP'] = noise_amp
+
+        for viewpoints in [5]:
+            new_param = copy.deepcopy(new_param)
+            new_param['N_PERSPECTIVE'] = viewpoints
+            for points_visible in [4]:
+                new_param = copy.deepcopy(new_param)
+                new_param['PROJECTION']['POINT_IN_ATLEAST'] = points_visible
+                
                 existing_runs = run_table_df[
                     (run_table_df['parameters/DATASET'] == new_param['DATASET'])
                     & (run_table_df['parameters/INITIAL_EMBEDDING'] == new_param['INITIAL_EMBEDDING'])
@@ -218,22 +249,30 @@ for dataset in pix3D_dataset:
                     & (run_table_df['parameters/N_PERSPECTIVE'] == new_param['N_PERSPECTIVE'])
                     & (run_table_df['parameters/PROJECTION/POINT_IN_ATLEAST'] == new_param['PROJECTION']['POINT_IN_ATLEAST'])
                     & (run_table_df['parameters/PROJECTION/PROJ_TYPE'] == new_param['PROJECTION']['PROJ_TYPE'])
+                    & (run_table_df['parameters/NOISE_AMOUNT'] == new_param['NOISE_AMOUNT'])
+                    & (run_table_df['parameters/ANGLE_RANGE/START'] == new_param['ANGLE_RANGE']['START'])
+                    & (run_table_df['parameters/ANGLE_RANGE/END'] == new_param['ANGLE_RANGE']['END'])
+                    & (run_table_df['parameters/NOISE_AMP'] == new_param['NOISE_AMP'])
+                    & (run_table_df['parameters/NOISE_TYPE']== new_param['NOISE_TYPE'])
                 ]
-
-                for _ in range(MIN_NUMBER_OF_RUN_REQUIRED - len(existing_runs)):
+                
+                for ei in range(MIN_NUMBER_OF_RUN_REQUIRED - len(existing_runs)):
                     seed = np.random.randint(1, 500)
                     np.random.seed(seed)
                     new_param['NUMPY_SEED'] = seed
                     all_params.append(new_param)
+                    # if this is the last iteration, break
+                    if ei == MIN_NUMBER_OF_RUN_REQUIRED - len(existing_runs) - 1:
+                        break
                 else:
                     print("Skipping this run as it already exists in experiment:", existing_runs['sys/id'].tolist())
 
-print("Total experiments to run:", len(all_params))
+console.print(f"Total experiments to run: {len(all_params)}\n", style="bold red")
 
-for exp_i, params in enumerate(all_params):
-    print(f"Running experiment:{exp_i}/{len(all_params)}")
+for exp_i, params in track(enumerate(all_params), total=len(all_params), transient=True):
+    console.print(f"Running experiment:{exp_i}/{len(all_params)}", style="bold red")
     upload_numpy.counter = 0
-    params['tags'] = params['tags'] + [str(params['DATASET']), str(params['N_PERSPECTIVE']), str(params['PROJECTION']['PROJ_TYPE']), 'lmnet']
+    params['tags'] = params['tags'] + []
     # Assertions
     if params['PROJECTION']['PROJ_TYPE'] == "atleast_in_n_persp":
         assert 1 <= params['PROJECTION']['POINT_IN_ATLEAST'] <= params['N_PERSPECTIVE'], "0 <= POINT_IN_ATLEAST <= N_PERSPECTIVE"
@@ -241,8 +280,8 @@ for exp_i, params in enumerate(all_params):
     EXPERIMENT_NAME = f"{EXPERIMENT_NAME_PREFIX}-" if EXPERIMENT_NAME_PREFIX else ""
     EXPERIMENT_NAME += params['DATASET']
 
-    pp.pprint(EXPERIMENT_NAME)
-    pp.pprint(params)
+    console.log(EXPERIMENT_NAME)
+    console.log(params)
 
     print("Loading Dataset...")
     points = get_dataset_points(params['DATASET'], n_points=params['N_POINTS'], datadir=params['DATA_DIR'], normalize=params['NORMALIZE_DATASET_POINTS'])
@@ -250,7 +289,7 @@ for exp_i, params in enumerate(all_params):
 
     ## Neptune
     run = neptune.init(
-        project="rahatzamancse/MPSE-on-LMNET-dataset",
+        project="rahatzamancse/3DMPE-angle-noise",
         api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI3NDk5MWVkNS0wMDg4LTRmNTktYWQyZC0zNzUyNTg0MTY1MGYifQ==",
         source_files=["neptune-exp.py", "utils.py"],
         capture_hardware_metrics=False,
@@ -270,7 +309,7 @@ for exp_i, params in enumerate(all_params):
         ))
 
     labeled_perspectives = []
-    perspectives, projection_mats = get_randomized_all_persps(points, params['N_PERSPECTIVE'])
+    perspectives, projection_mats = get_randomized_all_persps(points, params['N_PERSPECTIVE'], [params['ANGLE_RANGE']['START'], params['ANGLE_RANGE']['END']])
     projection_mats = np.array(projection_mats)
     for perspective in perspectives:
         labeled_perspectives.append(give_ids(perspective))
@@ -282,6 +321,10 @@ for exp_i, params in enumerate(all_params):
             ray_traceZ(p, n_raysX=params['PROJECTION']['N_XRAYS'], n_raysY=params['PROJECTION']['N_YRAYS']) for p in tqdm(labeled_perspectives)
         ]
 
+    for labeled_perspective in labeled_perspectives:
+        for p in labeled_perspective:
+            p['data'][2] = 0
+
     for i, view in enumerate(labeled_perspectives):
         image_dim = np.array([500, 500])
         view = remove_ids(view)[:, :2]
@@ -292,6 +335,8 @@ for exp_i, params in enumerate(all_params):
         run[f'GT/perspectives/{i}'].upload(File.as_image(image))
 
     dist_mats, weights_mats = get_dist_weights(labeled_perspectives, len(points), params['N_PROJECTION_DIM'])
+    
+    dist_mats = add_noise(dist_mats, params['NOISE_AMOUNT'], params['NOISE_AMP'])
 
     baseline = get_baseline_metrics(points, dist_mats)
     run['Results/Baseline/4point_ICP_Chamfer'] = baseline['chamfer']
@@ -388,10 +433,10 @@ for exp_i, params in enumerate(all_params):
     
     d_th = max([r[1] - r[0] for r in [range_x, range_y, range_z]])
 
-    # icp_trans_mat, icp_loss = get_icp_trans_mat_by_random_rotation(embeddings, points, d_th=d_th, max_iter=1000)
     trans_mat, loss = get_4pointsample_transform_mat(embeddings, points)
     prefix = 'Results/Alignment/ICP/'
     if params['UPLOAD_LARGE_VIZ']:
+        icp_trans_mat, icp_loss = get_icp_trans_mat_by_random_rotation(embeddings, points, d_th=d_th, max_iter=1000)
         run[prefix+'Vis'].upload(File.as_html(
             plot_3D([
                     points,

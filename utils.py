@@ -1,7 +1,6 @@
 import numpy as np
 import plotly.graph_objs as go
 import cv2
-from tqdm import tqdm
 import itertools
 # import open3d as o3d
 import io
@@ -10,20 +9,17 @@ from PIL import Image
 import tensorflow as tf
 import copy
 import pandas as pd
-from pyoints import (
-    storage,
-    Extent,
-    transformation,
-    filters,
-    registration,
-    normals,
-)
+# from pyoints import (
+#     transformation,
+#     registration,
+# )
 import trimesh
 from functools import cache
 from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 from sklearn.manifold import MDS
 import json
+from functools import lru_cache
 
 shapenet_category_to_id = {
     'airplane'	: '02691156',
@@ -135,7 +131,7 @@ def get_keypoints(imgs, feature_point_detector = None):
     if not feature_point_detector:
         feature_point_detector = cv2.SIFT_create()
     all_keypoints, all_descriptors = [], []
-    for img in tqdm(imgs, total=len(imgs), desc="Getting Feature points"):
+    for img in imgs:
         keypoints, descriptors = feature_point_detector.detectAndCompute(img, None)
         all_keypoints.append(keypoints)
         all_descriptors.append(descriptors)
@@ -187,6 +183,28 @@ def getRotationMatrix(angle, axis):
             [s, c, 0],
             [0, 0, 1]
         ])
+
+
+
+def add_noise(distance_matrix, noise_amount=0.01, noise_level=0.01, in_place=True):
+    n = len(distance_matrix[0])
+    # randomly choose noise_level*n points to add noise
+    noise_points = np.random.choice(n, int(noise_amount*n), replace=False)
+    if not in_place:
+        distance_matrix = [persp.copy() for persp in distance_matrix]
+    for persp in range(len(distance_matrix)):
+        dist_range = (distance_matrix[persp].max() - distance_matrix[persp].min()) * noise_level
+        for i in noise_points:
+            noise = np.random.uniform(0, dist_range, n)
+            distance_matrix[persp][i, :] += noise
+            distance_matrix[persp][:, i] += noise
+            distance_matrix[persp][i, i] = 0
+    return distance_matrix
+    
+
+def add_matching_noise(perspectives, noise_amount=0.01, noise_level=0.01):
+    n = len(perspectives[0])
+    
 
     
 def plot_3D_paper(samples_3D, range_x=None, range_y=None, range_z=None, proj_type='perspective', colors=None, eq_range=0, cubic=True, pad=0.4, point_size=2, opacity=1):
@@ -267,33 +285,29 @@ def get_equiangle_persps(points, n):
     return perspectives, projection_mats
 
 
-def get_randomized_all_persps(points, n):
+def get_randomized_all_persps(points, n, angleRange=[0, 360]):
     if n == 1:
         flattened_points = points.copy()
-        flattened_points[:, 2] = 0
         return [flattened_points], np.identity(3)
     perspectives = []
     projection_mats = []
     if n % 2 == 1:
         flattened_points = points.copy()
-        flattened_points[:, 2] = 0
         perspectives.append(flattened_points)
         projection_mats.append(np.identity(3))
         n -= 1
     
-    add_angle = 360/n
+    add_angle = (angleRange[1] - angleRange[0])/n
     for i in range(1, n//2+1):
-        angle_range = [(i-1)*add_angle, i*add_angle]
+        angle_range = [(i-1)*add_angle + angleRange[0], i*add_angle + angleRange[0]]
         angle1 = np.random.uniform()*(angle_range[1]-angle_range[0]) + angle_range[0]
         angle2 = np.random.uniform()*(angle_range[1]-angle_range[0]) + angle_range[0]
         rot_mat = getRotationMatrix(angle1, 'y')
         rot_mat2 = getRotationMatrix(-angle2, 'y')
         applied_points = np.dot(points, rot_mat)
-        applied_points[:, 2] = 0
         perspectives.append(applied_points)
         projection_mats.append(rot_mat)
         applied_points = np.dot(points, rot_mat2)
-        applied_points[:, 2] = 0
         perspectives.append(applied_points)
         projection_mats.append(rot_mat2)
     return perspectives, projection_mats
@@ -322,7 +336,7 @@ def get_dist_weights(hidden_projections, n_points, ndim=None):
     weights_mats = [np.zeros((n_points, n_points)) for _ in range(len(hidden_projections))]
 
 
-    for persp, dist_mat, weights_mat in tqdm(zip(hidden_projections, dist_mats, weights_mats)):
+    for persp, dist_mat, weights_mat in zip(hidden_projections, dist_mats, weights_mats):
         for point1, point2 in itertools.combinations_with_replacement(persp, 2):
             dist = np.linalg.norm(point1['data'][:ndim] - point2['data'][:ndim])
             dist_mat[point1['id'], point2['id']] = dist
@@ -336,6 +350,7 @@ def ray_traceZ(points, ray_r=None, n_raysX=None, n_raysY=None):
     points is a list of dictionaries
     points: [ {'data': ndarray[3], 'id': id} ]
     '''
+    @lru_cache(maxsize=1000000)
     def ray_intersect(point, rayxy, r):
         return (point[0] - rayxy[0])*(point[0] - rayxy[0]) + (point[1] - rayxy[1])*(point[1] - rayxy[1]) <= r*r
 
@@ -645,7 +660,7 @@ def get_4pointsample_transform_mat(points, gt_points, dist_agg_fn=None, t_sample
     gt_points = np.array(gt_points)
     min_dist = np.inf
     best_t = np.identity(4)
-    for _ in tqdm(range(t_sample), desc="4 Point Alignment"):
+    for _ in range(t_sample):
         selected_ids = np.random.choice(range(len(points)), 4)
         sampled_points = points_to_homo(points[selected_ids])
         gt_sampled_points = points_to_homo(gt_points[selected_ids])
@@ -676,7 +691,7 @@ def get_optimal_trans_mat(points_a, points_b, iterations=10000, dist_agg_fn=None
 
     opt = tf.keras.optimizers.Adam()
 
-    for i in tqdm(range(iterations), desc="Optimal Alignment"):
+    for i in range(iterations):
         opt.minimize(loss_fn, transform_mat)
     return transform_mat.numpy(), loss_fn().numpy()
 
@@ -725,37 +740,37 @@ def get_svd_trans(X, Y, dist_agg_fn=None):
 
 #     return embedding_trans, loss
 
-def get_icp_trans_mat_by_random_rotation(points_a, points_b, d_th=80, max_iter=1000, max_change_ratio=0.000001):
-    best_match = None
-    for rotated_points in tqdm(list(reversed(list(create_rotated_points(points_a)))), desc="ICP"):
-        coords_dict = {
-            'Embedding': rotated_points,
-            'GT': points_b,
-        }
-        # First, we initialize an ICP object. 
-        # The algorithm iteratively matches the ‘k’ closest points. 
-        # To limit the ratio of mismatched points, the ‘radii’ parameter is provided. It defines an ellipsoid within points can be assigned.
-        radii = [d_th, d_th, d_th]
-        icp = registration.ICP(
-            radii,
-            max_iter=max_iter,
-            max_change_ratio=max_change_ratio,
-            # max_change_ratio=0.01,
-            k=1,
-        )
+# def get_icp_trans_mat_by_random_rotation(points_a, points_b, d_th=80, max_iter=1000, max_change_ratio=0.000001):
+#     best_match = None
+#     for rotated_points in tqdm(list(reversed(list(create_rotated_points(points_a)))), desc="ICP"):
+#         coords_dict = {
+#             'Embedding': rotated_points,
+#             'GT': points_b,
+#         }
+#         # First, we initialize an ICP object. 
+#         # The algorithm iteratively matches the ‘k’ closest points. 
+#         # To limit the ratio of mismatched points, the ‘radii’ parameter is provided. It defines an ellipsoid within points can be assigned.
+#         radii = [d_th, d_th, d_th]
+#         icp = registration.ICP(
+#             radii,
+#             max_iter=max_iter,
+#             max_change_ratio=max_change_ratio,
+#             # max_change_ratio=0.01,
+#             k=1,
+#         )
 
-        T_dict, pairs_dict, report = icp(coords_dict)
+#         T_dict, pairs_dict, report = icp(coords_dict)
 
-        aligned_embedding1 = transformation.transform(coords_dict['Embedding'], T_dict['Embedding'])
-        aligned_GT1 = transformation.transform(coords_dict['GT'], T_dict['GT'])
+#         aligned_embedding1 = transformation.transform(coords_dict['Embedding'], T_dict['Embedding'])
+#         aligned_GT1 = transformation.transform(coords_dict['GT'], T_dict['GT'])
 
-        if not best_match or report['RMSE'][-1] < best_match['RMSE']:
-            best_match = {
-                'RMSE': report['RMSE'][-1],
-                'aligned_points_a': aligned_embedding1,
-                'aligned_points_b': aligned_GT1,
-                'trans_mat_points_a': T_dict['Embedding'],
-                'trans_mat_points_b': T_dict['GT'],
-            }
+#         if not best_match or report['RMSE'][-1] < best_match['RMSE']:
+#             best_match = {
+#                 'RMSE': report['RMSE'][-1],
+#                 'aligned_points_a': aligned_embedding1,
+#                 'aligned_points_b': aligned_GT1,
+#                 'trans_mat_points_a': T_dict['Embedding'],
+#                 'trans_mat_points_b': T_dict['GT'],
+#             }
             
-    return best_match
+#     return best_match
