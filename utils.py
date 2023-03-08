@@ -186,21 +186,40 @@ def getRotationMatrix(angle, axis):
 
 
 
-def add_noise(distance_matrix, noise_amount=0.01, noise_level=0.01, in_place=True):
+def add_noise(distance_matrix, noise_amount=0.01, noise_level=0.01, in_place=True, noise_dist='gaussian'):
     n = len(distance_matrix[0])
-    # randomly choose noise_level*n points to add noise
     noise_points = np.random.choice(n, int(noise_amount*n), replace=False)
     if not in_place:
         distance_matrix = [persp.copy() for persp in distance_matrix]
     for persp in range(len(distance_matrix)):
         dist_range = (distance_matrix[persp].max() - distance_matrix[persp].min()) * noise_level
         for i in noise_points:
-            noise = np.random.uniform(0, dist_range, n)
+            if noise_dist == 'gaussian':
+                noise = np.random.normal(loc=0, scale=dist_range, size=n)
+            elif noise_dist == 'uniform':
+                noise = np.random.uniform(low=-dist_range/2, high=dist_range/2, size=n)
             distance_matrix[persp][i, :] += noise
             distance_matrix[persp][:, i] += noise
             distance_matrix[persp][i, i] = 0
+    distance_matrix = [np.maximum(persp, 0) for persp in distance_matrix]
     return distance_matrix
     
+
+def add_matching_noise(perspectives, p=0.01, q=0.01):
+    n = len(perspectives[0])
+    noise_points1 = np.random.choice(n, int(p*n), replace=False)
+
+    perspectives = np.array(perspectives)
+
+    for noise_point1 in noise_points1:
+        perspective_i = np.random.choice(len(perspectives), 1, replace=False)[0]
+        # Sort the points by distance to the noise point. Also exclude the z coordinate
+        dists = np.linalg.norm(perspectives[perspective_i, :, :2] - perspectives[perspective_i, noise_point1, :2], axis=1)
+        noise_points2 = np.argsort(dists)[:int(q*n)]
+        noise_point2 = np.random.choice(noise_points2, 1, replace=False)[0]
+        perspectives[perspective_i, [noise_point1, noise_point2]] = perspectives[perspective_i, [noise_point2, noise_point1]]
+
+    return perspectives
 
     
 

@@ -42,7 +42,9 @@ init_params = dict(
     NORMALIZE_DATASET_POINTS = True,
     INITIAL_EMBEDDING = False,
     # NOISE_TYPE='permutation',
-    NOISE_TYPE='distance',
+    # NOISE_TYPE='distance',
+    NOISE_TYPE='none',
+    NOISE_DIST='gaussian',
     NOISE_AMOUNT = 0.0,
     NOISE_AMP = 0.0,
     N_POINTS = 512,
@@ -74,7 +76,7 @@ init_params = dict(
     # NUMPY_SEED = seed,
     UPLOAD_LARGE_VIZ = False,
     UPLOAD_MPSE_FIGS = False,
-    tags = ['angle-variable-projection']
+    tags = ['noise-gaussian']
 )
 all_params = [init_params]
 
@@ -220,52 +222,52 @@ for dataset in [
     #     new_param = copy.deepcopy(new_param)
     #     new_param['MPSE']['SMART_INITIALIZATION'] = smart_init
 
-    for angle_range in map(lambda end: {'START': 0, 'END': end}, [270, 135, 120, 105, 90, 75, 30]):
-        new_param = copy.deepcopy(new_param)
-        new_param['ANGLE_RANGE'] = angle_range
-    # for noise_amount in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+    # for angle_range in map(lambda end: {'START': 0, 'END': end}, [90, 75, 60, 45, 30]):
     #     new_param = copy.deepcopy(new_param)
-    #     new_param['NOISE_AMOUNT'] = noise_amount
+    #     new_param['ANGLE_RANGE'] = angle_range
+    for noise_amount in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]:
+        new_param = copy.deepcopy(new_param)
+        new_param['NOISE_AMOUNT'] = noise_amount
     
-    #     # for noise_amp in [0.01, 0.03, 0.05, 0.09]:
-    #     for noise_amp in [0.05, 0.1, 0.2, 0.3, 0.4, 0.5]:
-    #         new_param = copy.deepcopy(new_param)
-    #         new_param['NOISE_AMP'] = noise_amp
-
-        for viewpoints in [5]:
+        for noise_amp in [1.0]:
             new_param = copy.deepcopy(new_param)
-            new_param['N_PERSPECTIVE'] = viewpoints
-            for points_visible in [4]:
+            new_param['NOISE_AMP'] = noise_amp
+
+            for viewpoints in [5]:
                 new_param = copy.deepcopy(new_param)
-                new_param['PROJECTION']['POINT_IN_ATLEAST'] = points_visible
-                
-                existing_runs = run_table_df[
-                    (run_table_df['parameters/DATASET'] == new_param['DATASET'])
-                    & (run_table_df['parameters/INITIAL_EMBEDDING'] == new_param['INITIAL_EMBEDDING'])
-                    & (run_table_df['parameters/MPSE/BATCH_SIZE'] == new_param['MPSE']['BATCH_SIZE'])
-                    & (run_table_df['parameters/MPSE/SMART_INITIALIZATION'] == new_param['MPSE']['SMART_INITIALIZATION'])
-                    & (run_table_df['parameters/MPSE/VARIABLE_PROJECTION'] == new_param['MPSE']['VARIABLE_PROJECTION'])
-                    & (run_table_df['parameters/N_POINTS'] == new_param['N_POINTS'])
-                    & (run_table_df['parameters/N_PERSPECTIVE'] == new_param['N_PERSPECTIVE'])
-                    & (run_table_df['parameters/PROJECTION/POINT_IN_ATLEAST'] == new_param['PROJECTION']['POINT_IN_ATLEAST'])
-                    & (run_table_df['parameters/PROJECTION/PROJ_TYPE'] == new_param['PROJECTION']['PROJ_TYPE'])
-                    & (run_table_df['parameters/NOISE_AMOUNT'] == new_param['NOISE_AMOUNT'])
-                    & (run_table_df['parameters/ANGLE_RANGE/START'] == new_param['ANGLE_RANGE']['START'])
-                    & (run_table_df['parameters/ANGLE_RANGE/END'] == new_param['ANGLE_RANGE']['END'])
-                    & (run_table_df['parameters/NOISE_AMP'] == new_param['NOISE_AMP'])
-                    & (run_table_df['parameters/NOISE_TYPE']== new_param['NOISE_TYPE'])
-                ]
-                
-                for ei in range(MIN_NUMBER_OF_RUN_REQUIRED - len(existing_runs)):
-                    seed = np.random.randint(1, 500)
-                    np.random.seed(seed)
-                    new_param['NUMPY_SEED'] = seed
-                    all_params.append(new_param)
-                    # if this is the last iteration, break
-                    if ei == MIN_NUMBER_OF_RUN_REQUIRED - len(existing_runs) - 1:
-                        break
-                else:
-                    print("Skipping this run as it already exists in experiment:", existing_runs['sys/id'].tolist())
+                new_param['N_PERSPECTIVE'] = viewpoints
+                for points_visible in [4]:
+                    new_param = copy.deepcopy(new_param)
+                    new_param['PROJECTION']['POINT_IN_ATLEAST'] = points_visible
+                    
+                    existing_runs = run_table_df[
+                        (run_table_df['parameters/DATASET'] == new_param['DATASET'])
+                        & (run_table_df['parameters/INITIAL_EMBEDDING'] == new_param['INITIAL_EMBEDDING'])
+                        & (run_table_df['parameters/MPSE/BATCH_SIZE'] == new_param['MPSE']['BATCH_SIZE'])
+                        & (run_table_df['parameters/MPSE/SMART_INITIALIZATION'] == new_param['MPSE']['SMART_INITIALIZATION'])
+                        & (run_table_df['parameters/MPSE/VARIABLE_PROJECTION'] == new_param['MPSE']['VARIABLE_PROJECTION'])
+                        & (run_table_df['parameters/N_POINTS'] == new_param['N_POINTS'])
+                        & (run_table_df['parameters/N_PERSPECTIVE'] == new_param['N_PERSPECTIVE'])
+                        & (run_table_df['parameters/PROJECTION/POINT_IN_ATLEAST'] == new_param['PROJECTION']['POINT_IN_ATLEAST'])
+                        & (run_table_df['parameters/PROJECTION/PROJ_TYPE'] == new_param['PROJECTION']['PROJ_TYPE'])
+                        & (run_table_df['parameters/NOISE_AMOUNT'] == new_param['NOISE_AMOUNT'])
+                        & (run_table_df['parameters/ANGLE_RANGE/START'] == new_param['ANGLE_RANGE']['START'])
+                        & (run_table_df['parameters/ANGLE_RANGE/END'] == new_param['ANGLE_RANGE']['END'])
+                        & (run_table_df['parameters/NOISE_AMP'] == new_param['NOISE_AMP'])
+                        & (run_table_df['parameters/NOISE_TYPE']== new_param['NOISE_TYPE'])
+                        & (run_table_df['parameters/NOISE_DIST']== new_param['NOISE_DIST'])
+                    ]
+                    
+                    for ei in range(MIN_NUMBER_OF_RUN_REQUIRED - len(existing_runs)):
+                        seed = np.random.randint(1, 500)
+                        np.random.seed(seed)
+                        new_param['NUMPY_SEED'] = seed
+                        all_params.append(new_param)
+                        # if this is the last iteration, break
+                        if ei == MIN_NUMBER_OF_RUN_REQUIRED - len(existing_runs) - 1:
+                            break
+                    else:
+                        print("Skipping this run as it already exists in experiment:", existing_runs['sys/id'].tolist())
 
 console.print(f"Total experiments to run: {len(all_params)}\n", style="bold red")
 
@@ -311,6 +313,8 @@ for exp_i, params in track(enumerate(all_params), total=len(all_params), transie
     labeled_perspectives = []
     perspectives, projection_mats = get_randomized_all_persps(points, params['N_PERSPECTIVE'], [params['ANGLE_RANGE']['START'], params['ANGLE_RANGE']['END']])
     projection_mats = np.array(projection_mats)
+    if params['NOISE_TYPE'] == 'permutation':
+        perspectives = add_matching_noise(perspectives, params['NOISE_AMOUNT'], params['NOISE_AMP'])
     for perspective in perspectives:
         labeled_perspectives.append(give_ids(perspective))
 
@@ -336,7 +340,8 @@ for exp_i, params in track(enumerate(all_params), total=len(all_params), transie
 
     dist_mats, weights_mats = get_dist_weights(labeled_perspectives, len(points), params['N_PROJECTION_DIM'])
     
-    dist_mats = add_noise(dist_mats, params['NOISE_AMOUNT'], params['NOISE_AMP'])
+    if params['NOISE_TYPE'] == 'distance':
+        dist_mats = add_noise(dist_mats, params['NOISE_AMOUNT'], params['NOISE_AMP'], params['NOISE_DIST'])
 
     baseline = get_baseline_metrics(points, dist_mats)
     run['Results/Baseline/4point_ICP_Chamfer'] = baseline['chamfer']
