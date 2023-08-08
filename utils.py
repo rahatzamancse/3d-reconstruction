@@ -791,3 +791,76 @@ def get_svd_trans(X, Y, dist_agg_fn=None):
 #             }
             
 #     return best_match
+
+
+
+class DisjointSet:
+    def __init__(self):
+        self.parent = {}  # Dictionary to store the parent of each element
+        self.size = {}    # Dictionary to store the size of each set
+
+    def make_set(self, element):
+        if element not in self.parent:
+            self.parent[element] = element
+            self.size[element] = 1
+
+    def find(self, element):
+        if element not in self.parent:
+            return None
+
+        # Path compression - update parent pointers along the way
+        if self.parent[element] != element:
+            self.parent[element] = self.find(self.parent[element])
+
+        return self.parent[element]
+
+    def union(self, element1, element2):
+        root1 = self.find(element1)
+        root2 = self.find(element2)
+
+        if root1 is None or root2 is None:
+            return
+
+        if root1 == root2:
+            return
+
+        # Union by size - attach the smaller set to the root of the larger set
+        if self.size[root1] >= self.size[root2]:
+            self.parent[root2] = root1
+            self.size[root1] += self.size[root2]
+        else:
+            self.parent[root1] = root2
+            self.size[root2] += self.size[root1]
+
+    def get_sets(self):
+        sets = {}
+        for element in self.parent:
+            root = self.find(element)
+            sets.setdefault(root, []).append(element)
+        return list(sets.values())
+
+
+def merge_dicts_with_average(array_of_dicts):
+    # Create a dictionary to group elements based on 'id'
+    grouped_data = {}
+    
+    # Iterate through each element in the input array
+    for element in array_of_dicts:
+        id_key = element['id']
+        data_value = element['data']
+        
+        # If 'id' is already present in the grouped_data, update the sum and count
+        if id_key in grouped_data:
+            grouped_data[id_key]['sum'] += data_value
+            grouped_data[id_key]['count'] += 1
+        # If 'id' is not present, create a new entry
+        else:
+            grouped_data[id_key] = {'sum': data_value, 'count': 1}
+    
+    # Create a new list of dictionaries with averaged 'data' values
+    result = []
+    for id_key, data_info in grouped_data.items():
+        average_data = data_info['sum'] / data_info['count']
+        result.append({'id': id_key, 'data': average_data})
+    
+    return result
